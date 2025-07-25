@@ -31,15 +31,11 @@ public class Main {
                             tool.description(),
                             Parameters.object(tool.inputSchema().properties())
                     ))).toList();
-                    return Flux.fromIterable(() -> {
-                                try {
-                                    return chatModel.tools(tools).stream().call("请告诉所有的班车信息");
-                                } catch (IOException | InterruptedException e) {
-                                    // Propagate as Mono.error to keep the reactive chain consistent
-                                    throw new RuntimeException("Error calling chat model with tools", e);
-                                }
-                            })
-                            .subscribeOn(Schedulers.parallel()); // This Flux now emits ChatResponse
+                    try {
+                        return chatModel.tools(tools).stream().call("请告诉所有的班车信息").subscribeOn(Schedulers.parallel()); // This Flux now emits ChatResponse
+                    } catch (IOException | InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
                 })
                 .flatMap(chatResponse -> { // This flatMap now processes each ChatResponse
                     if (chatResponse == null) {
@@ -60,26 +56,23 @@ public class Main {
                                                     McpSchema.TextContent textContent = (McpSchema.TextContent) content;
                                                     String text = textContent.text();
                                                     // Call chatModel again with the result of the tool execution
-                                                    return Flux.fromIterable(() -> {
-                                                                try {
-                                                                    // Pass null for tools as it's a follow-up call
-                                                                    return chatModel.tools(null).stream().call(text);
-                                                                } catch (IOException | InterruptedException e) {
-                                                                    throw new RuntimeException("Error calling chat model after tool execution", e);
-                                                                }
-                                                            })
-                                                            .subscribeOn(Schedulers.parallel()) // Again, execute blocking call on parallel scheduler
-                                                            .doOnNext(r -> {
-                                                                if (!r.done()) {
-                                                                    String c = r.message().content();
-                                                                    if (c.equals("\n")) {
-                                                                        System.out.println();
-                                                                    } else {
-                                                                        System.out.print(c);
+                                                    try {
+                                                        return chatModel.tools(null).stream().call(text)
+                                                                .subscribeOn(Schedulers.parallel()) // Again, execute blocking call on parallel scheduler
+                                                                .doOnNext(r -> {
+                                                                    if (!r.done()) {
+                                                                        String c = r.message().content();
+                                                                        if (c.equals("\n")) {
+                                                                            System.out.println();
+                                                                        } else {
+                                                                            System.out.print(c);
+                                                                        }
                                                                     }
-                                                                }
-                                                            })
-                                                            .then(); // Convert Flux to Mono<Void> to continue the chain
+                                                                })
+                                                                .then(); // Convert Flux to Mono<Void> to continue the chain
+                                                    } catch (IOException | InterruptedException e) {
+                                                        return Mono.error(new RuntimeException(e));
+                                                    }
                                                 }
                                                 return Mono.empty(); // If not text content, just complete
                                             });

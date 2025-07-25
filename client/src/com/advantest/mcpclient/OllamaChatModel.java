@@ -2,6 +2,7 @@ package com.advantest.mcpclient;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import reactor.core.publisher.Flux;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -143,13 +144,13 @@ public class OllamaChatModel implements ChatModel {
             return this;
         }
 
-        public Iterator<ChatResponse> call(String prompt) throws IOException, InterruptedException {
+        public Flux<ChatResponse> call(String prompt) throws IOException, InterruptedException {
             ChatMessage message = new ChatMessage(MessageType.USER, prompt);
             this.chatModel.chatRequest.setModel(model);
             this.chatModel.chatRequest.setStream(true);
-//            this.chatModel.chatRequest.setMessages(List.of(message));
             this.chatModel.chatRequest.addMessages(List.of(message));
-            return this.chatModel.sendStreamChatRequest(this.chatModel.chatRequest);
+            Iterator<ChatResponse> iterator = this.chatModel.sendStreamChatRequest(this.chatModel.chatRequest);
+            return Flux.fromIterable(() -> iterator);
         }
     }
 }
