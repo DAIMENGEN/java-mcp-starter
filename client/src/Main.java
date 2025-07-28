@@ -1,4 +1,7 @@
-import com.advantest.mcpclient.*;
+import com.advantest.mcpclient.OllamaChatModel;
+import com.advantest.mcpclient.Parameters;
+import com.advantest.mcpclient.Tool;
+import com.advantest.mcpclient.ToolFunction;
 import io.modelcontextprotocol.client.McpAsyncClient;
 import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.transport.HttpClientSseClientTransport;
@@ -7,7 +10,6 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -31,11 +33,7 @@ public class Main {
                             tool.description(),
                             Parameters.object(tool.inputSchema().properties())
                     ))).toList();
-                    try {
-                        return chatModel.tools(tools).stream().call("请告诉所有的班车信息").subscribeOn(Schedulers.parallel()); // This Flux now emits ChatResponse
-                    } catch (IOException | InterruptedException e) {
-                        throw new RuntimeException(e);
-                    }
+                    return chatModel.tools(tools).stream("请告诉所有的班车信息").subscribeOn(Schedulers.parallel()); // This Flux now emits ChatResponse
                 })
                 .flatMap(chatResponse -> { // This flatMap now processes each ChatResponse
                     if (chatResponse == null) {
@@ -56,23 +54,18 @@ public class Main {
                                                     McpSchema.TextContent textContent = (McpSchema.TextContent) content;
                                                     String text = textContent.text();
                                                     // Call chatModel again with the result of the tool execution
-                                                    try {
-                                                        return chatModel.tools(null).stream().call(text)
-                                                                .subscribeOn(Schedulers.parallel()) // Again, execute blocking call on parallel scheduler
-                                                                .doOnNext(r -> {
-                                                                    if (!r.done()) {
-                                                                        String c = r.message().content();
-                                                                        if (c.equals("\n")) {
-                                                                            System.out.println();
-                                                                        } else {
-                                                                            System.out.print(c);
-                                                                        }
+                                                    return chatModel.tools(null).stream(text)
+                                                            .subscribeOn(Schedulers.parallel()) // Again, execute blocking call on parallel scheduler
+                                                            .doOnNext(r -> {
+                                                                if (!r.done()) {
+                                                                    String c = r.message().content();
+                                                                    if (c.equals("\n")) {
+                                                                        System.out.println();
+                                                                    } else {
+                                                                        System.out.print(c);
                                                                     }
-                                                                })
-                                                                .then(); // Convert Flux to Mono<Void> to continue the chain
-                                                    } catch (IOException | InterruptedException e) {
-                                                        return Mono.error(new RuntimeException(e));
-                                                    }
+                                                                }
+                                                            }).then(); // Convert Flux to Mono<Void> to continue the chain
                                                 }
                                                 return Mono.empty(); // If not text content, just complete
                                             });

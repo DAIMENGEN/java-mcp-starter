@@ -1,5 +1,8 @@
 package com.advantest.mcpclient;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -8,6 +11,7 @@ import java.util.List;
  * Author: mengen.dai@advantest.com
  */
 public class ChatRequest {
+    private static final ObjectMapper objectMapper = new ObjectMapper();
     private String model;
     private boolean stream;
     private List<Tool> tools;
@@ -67,5 +71,13 @@ public class ChatRequest {
             this.messages = new ArrayList<>();
         }
         this.messages.addAll(messages);
+    }
+
+    public String toJson() {
+        try {
+            return objectMapper.writeValueAsString(this);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("Failed to deserialize JSON: ", e);
+        }
     }
 }

@@ -1,6 +1,9 @@
 package com.advantest.mcpclient;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import java.time.ZonedDateTime;
 
@@ -39,10 +42,24 @@ public record ChatResponse(
         @JsonProperty("eval_duration")
         Long evalDuration
 ) {
+    private static final ObjectMapper objectMapper = new ObjectMapper();
+
+    static {
+        objectMapper.registerModule(new JavaTimeModule());
+    }
+
     public boolean requiresToolExecution() {
         if (this.message() != null && this.message().toolCalls() != null) {
             return !this.message().toolCalls().isEmpty();
         }
         return false;
+    }
+
+    public static ChatResponse fromJson(String json) {
+        try {
+            return objectMapper.readValue(json, ChatResponse.class);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("Failed to deserialize JSON: ", e);
+        }
     }
 }
