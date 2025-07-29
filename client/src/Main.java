@@ -11,8 +11,8 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 import java.util.List;
+import java.util.Scanner;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Created on 2025/07/25
@@ -20,76 +20,90 @@ import java.util.concurrent.TimeUnit;
  */
 public class Main {
     public static void main(String[] args) throws InterruptedException {
+        Scanner scanner = new Scanner(System.in);
         CountDownLatch latch = new CountDownLatch(1);
         OllamaChatModel chatModel = new OllamaChatModel("http://10.150.10.125:11434");
-        HttpClientSseClientTransport transport = HttpClientSseClientTransport.builder("http://localhost:8080").build(); // Corrected for completeness based on imports
+        HttpClientSseClientTransport transport = HttpClientSseClientTransport.builder("http://localhost:8080").build();
         McpAsyncClient client = McpClient.async(transport).build();
-        // Release the latch when the entire flow completes
         client.initialize()
                 .flatMap(initResult -> client.listTools())
-                .flatMapMany(toolList -> { // Changed to flatMapMany because we're going from Mono to Flux of ChatResponse
+                .flatMap(toolList -> {
                     List<Tool> tools = toolList.tools().stream().map(tool -> Tool.function(ToolFunction.of(
                             tool.name(),
                             tool.description(),
                             Parameters.object(tool.inputSchema().properties())
                     ))).toList();
-                    return chatModel.tools(tools).stream("请告诉所有的班车信息").subscribeOn(Schedulers.parallel()); // This Flux now emits ChatResponse
+                    return Mono.just(tools);
                 })
-                .flatMap(chatResponse -> { // This flatMap now processes each ChatResponse
-                    if (chatResponse == null) {
-                        return Mono.empty(); // Still Mono<Void> or whatever the chain expects next
-                    }
-                    if (chatResponse.done()) {
-                        return Mono.empty(); // Signal completion, current chain expects a Mono<Void>
-                    }
+                .doOnNext(tools -> {
+                    System.out.println("========================================");
+                    System.out.println("🧠 Welcome to AI Chat CLI");
+                    System.out.println("Type your questions below and press [Enter].");
+                    System.out.println("Type \"exit\" or \"quit\" to end the session.");
+                    System.out.println("========================================\n");
+                    loopChat(scanner, chatModel, client, tools, latch);
+                })
+                .subscribe();
+        latch.await();
+    }
+
+    private static void loopChat(Scanner scanner, OllamaChatModel chatModel, McpAsyncClient client, List<Tool> tools, CountDownLatch latch) {
+        System.out.print("> ");
+        String input = scanner.nextLine().trim();
+        if (input.equalsIgnoreCase("exit") || input.equalsIgnoreCase("quit")) {
+            System.out.println("\n👋 Session ended. Goodbye!");
+            latch.countDown();
+            return;
+        }
+        if (input.isEmpty()) {
+            System.out.println("⚠️  Empty input. Please enter a valid query.");
+            loopChat(scanner, chatModel, client, tools, latch);
+            return;
+        }
+        System.out.println("🤖 AI is thinking...\n");
+        chatModel.tools(tools).stream(input)
+                .subscribeOn(Schedulers.parallel())
+                .concatMap(chatResponse -> {
                     if (chatResponse.requiresToolExecution()) {
-                        // Process tool calls asynchronously
                         return Flux.fromIterable(chatResponse.message().toolCalls())
-                                .flatMap(toolCall -> {
-                                    McpSchema.CallToolRequest callToolRequest = new McpSchema.CallToolRequest(toolCall.function().name(), toolCall.function().arguments());
+                                .concatMap(toolCall -> {
+                                    McpSchema.CallToolRequest callToolRequest = new McpSchema.CallToolRequest(
+                                            toolCall.function().name(),
+                                            toolCall.function().arguments()
+                                    );
                                     return client.callTool(callToolRequest)
-                                            .flatMap(callToolResult -> {
+                                            .flatMapMany(callToolResult -> {
                                                 McpSchema.Content content = callToolResult.content().getFirst();
                                                 if ("text".equals(content.type())) {
                                                     McpSchema.TextContent textContent = (McpSchema.TextContent) content;
-                                                    String text = textContent.text();
-                                                    // Call chatModel again with the result of the tool execution
-                                                    return chatModel.tools(null).stream(text)
-                                                            .subscribeOn(Schedulers.parallel()) // Again, execute blocking call on parallel scheduler
+                                                    String toolResult = textContent.text();
+                                                    return chatModel.tools(null).stream(input + " " + toolResult)
+                                                            .subscribeOn(Schedulers.parallel())
                                                             .doOnNext(r -> {
                                                                 if (!r.done()) {
                                                                     String c = r.message().content();
-                                                                    if (c.equals("\n")) {
-                                                                        System.out.println();
-                                                                    } else {
-                                                                        System.out.print(c);
-                                                                    }
+                                                                    System.out.print(c.equals("\n") ? "\n" : c);
                                                                 }
-                                                            }).then(); // Convert Flux to Mono<Void> to continue the chain
+                                                            });
                                                 }
-                                                return Mono.empty(); // If not text content, just complete
+                                                return Flux.empty();
                                             });
                                 })
-                                .then(); // Convert Flux<Mono<Void>> to Mono<Void> to continue the chain
-                    }
-                    if (chatResponse.message() != null && chatResponse.message().content() != null) {
-                        String content = chatResponse.message().content();
-                        if (content.equals("\n")) {
-                            System.out.println();
-                        } else {
-                            System.out.print(content);
+                                .then(); // 等所有工具调用处理完
+                    } else {
+                        // 普通响应
+                        if (chatResponse.message() != null && chatResponse.message().content() != null) {
+                            String content = chatResponse.message().content();
+                            System.out.print(content.equals("\n") ? "\n" : content);
                         }
+                        return Mono.empty();
                     }
-                    return Mono.empty(); // Continue with the next chatResponse, emitting nothing
                 })
-                .doOnError(error -> {
-                    System.err.println("错误发生: " + error.getMessage());
-                    latch.countDown(); // Release the latch on error
+                .doOnError(err -> System.err.println("❌ 错误发生：" + err.getMessage()))
+                .doOnTerminate(() -> {
+                    System.out.println("\n");
+                    loopChat(scanner, chatModel, client, tools, latch); // 继续下一轮对话
                 })
-                .doOnTerminate(latch::countDown)
                 .subscribe();
-        if (!latch.await(5, TimeUnit.MINUTES)) {
-            System.err.println("程序超时，可能存在未完成的异步操作。");
-        }
     }
 }
