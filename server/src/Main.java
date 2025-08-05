@@ -1,6 +1,4 @@
-import com.advantest.mcpserver.InputSchema;
-import com.advantest.mcpserver.Property;
-import com.advantest.mcpserver.tool.annotation.Tool;
+import com.advantest.mcpserver.tool.method.MethodToolCallback;
 import com.advantest.mcpserver.tool.scanner.ToolAnnotationScanner;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.modelcontextprotocol.server.McpServer;
@@ -15,9 +13,6 @@ import org.eclipse.jetty.server.HttpConnectionFactory;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -26,7 +21,6 @@ import java.util.List;
  */
 public class Main {
     public static void main(String[] args) throws Exception {
-        test();
         HttpServletStreamableServerTransportProvider transportProvider = HttpServletStreamableServerTransportProvider.builder()
                 .objectMapper(new ObjectMapper())
                 .mcpEndpoint("/mcp")
@@ -41,8 +35,10 @@ public class Main {
                         .completions()
                         .build()
                 ).build();
-        var syncToolSpecification = getSyncToolSpecification();
-        mcpSyncServer.addTool(syncToolSpecification);
+        List<SyncToolSpecification> syncToolSpecifications = getSyncToolSpecifications();
+        for (SyncToolSpecification syncToolSpecification : syncToolSpecifications) {
+            mcpSyncServer.addTool(syncToolSpecification);
+        }
         Server server = new Server(8080);
         Connector connector = new ServerConnector(server, 1, 1, new HttpConnectionFactory());
         server.addConnector(connector);
@@ -53,42 +49,21 @@ public class Main {
         server.start();
     }
 
-    private static SyncToolSpecification getSyncToolSpecification() {
-        InputSchema inputSchema = InputSchema.builder()
-                .addProperty("username", Property.of("string", "The name of the person being greeted"))
-                .required("username")
-                .build();
-        McpSchema.Tool build = McpSchema.Tool.builder()
-                .name("greeting")
-                .title("greeting")
-                .description("Basic greeting")
-                .inputSchema(inputSchema.toJson())
-                .build();
-        return SyncToolSpecification.builder()
-                .tool(build)
-                .callHandler((exchange, request) -> {
-                    System.out.println("request = " + request);
-                    Object username = request.arguments().get("username");
-                    System.out.println("username = " + username);
-                    return new McpSchema.CallToolResult("Hello, " + username + ", I am Mengen.dai. How can I assist you today?", false);
-                })
-                .build();
+    public static List<SyncToolSpecification> getSyncToolSpecifications() {
+        List<MethodToolCallback> tools = ToolAnnotationScanner.findToolAnnotatedMethods("com.advantest.mcpserver");
+        return tools.stream().map(toolCallback -> {
+            String name = toolCallback.getToolDefinition().name();
+            String description = toolCallback.getToolDefinition().description();
+            String inputSchema = toolCallback.getToolDefinition().inputSchema();
+            McpSchema.Tool tool = McpSchema.Tool.builder()
+                    .name(name)
+                    .title(name)
+                    .description(description)
+                    .inputSchema(inputSchema)
+                    .build();
+            return SyncToolSpecification.builder()
+                    .tool(tool)
+                    .callHandler((exchange, request) -> new McpSchema.CallToolResult(toolCallback.call(request.arguments()), false)).build();
+        }).toList();
     }
-
-
-    public static void test() throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
-        List<Method> methods = ToolAnnotationScanner.findToolAnnotatedMethods("com.advantest.mcpserver", Tool.class);
-        for (Method method : methods) {
-            Tool annotation = method.getAnnotation(Tool.class);
-            System.out.println("方法名：" + annotation.name());
-            System.out.println("方法描述：" + annotation.description());
-            System.out.println("方法参数：" + Arrays.toString(method.getParameters()));
-            System.out.println("方法返回值类型：" + method.getReturnType());
-            Class<?> clazz = method.getDeclaringClass();
-            Object newInstance = clazz.getDeclaredConstructor().newInstance();
-            Object invoke = method.invoke(newInstance, "代蒙恩");
-            System.out.println(invoke);
-        }
-    }
-
 }

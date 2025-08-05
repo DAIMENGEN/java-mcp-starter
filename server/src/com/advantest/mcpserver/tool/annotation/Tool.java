@@ -11,7 +11,7 @@ import java.lang.annotation.*;
 @Documented
 public @interface Tool {
 
-    String name() default "";
+    String name();
 
     String description() default "";
 }
