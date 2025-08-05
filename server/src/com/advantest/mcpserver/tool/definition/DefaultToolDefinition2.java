@@ -1,4 +1,4 @@
-package com.advantest.mcpserver;
+package com.advantest.mcpserver.tool.definition;
 
 import io.modelcontextprotocol.spec.McpSchema;
 
@@ -6,14 +6,14 @@ import io.modelcontextprotocol.spec.McpSchema;
  * Create on 2025/08/05
  * Author: mengen.dai@advantest.com
  */
-public class ToolDefinition {
+public class DefaultToolDefinition2 {
     private final String name;
     private final String title;
     private final String description;
     private final String inputSchema;
     private final String outputSchema;
 
-    private ToolDefinition(Builder builder) {
+    private DefaultToolDefinition2(Builder builder) {
         this.name = builder.name;
         this.title = builder.title;
         this.description = builder.description;
@@ -77,8 +77,8 @@ public class ToolDefinition {
             return this;
         }
 
-        public ToolDefinition build() {
-            return new ToolDefinition(this);
+        public DefaultToolDefinition2 build() {
+            return new DefaultToolDefinition2(this);
         }
     }
 

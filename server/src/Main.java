@@ -1,5 +1,7 @@
 import com.advantest.mcpserver.InputSchema;
 import com.advantest.mcpserver.Property;
+import com.advantest.mcpserver.tool.annotation.Tool;
+import com.advantest.mcpserver.tool.scanner.ToolAnnotationScanner;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.modelcontextprotocol.server.McpServer;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
@@ -13,12 +15,18 @@ import org.eclipse.jetty.server.HttpConnectionFactory;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.util.Arrays;
+import java.util.List;
+
 /**
  * Create on 2025/07/25
  * Author: mengen.dai@advantest.com
  */
 public class Main {
     public static void main(String[] args) throws Exception {
+        test();
         HttpServletStreamableServerTransportProvider transportProvider = HttpServletStreamableServerTransportProvider.builder()
                 .objectMapper(new ObjectMapper())
                 .mcpEndpoint("/mcp")
@@ -65,6 +73,22 @@ public class Main {
                     return new McpSchema.CallToolResult("Hello, " + username + ", I am Mengen.dai. How can I assist you today?", false);
                 })
                 .build();
+    }
+
+
+    public static void test() throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
+        List<Method> methods = ToolAnnotationScanner.findToolAnnotatedMethods("com.advantest.mcpserver", Tool.class);
+        for (Method method : methods) {
+            Tool annotation = method.getAnnotation(Tool.class);
+            System.out.println("方法名：" + annotation.name());
+            System.out.println("方法描述：" + annotation.description());
+            System.out.println("方法参数：" + Arrays.toString(method.getParameters()));
+            System.out.println("方法返回值类型：" + method.getReturnType());
+            Class<?> clazz = method.getDeclaringClass();
+            Object newInstance = clazz.getDeclaredConstructor().newInstance();
+            Object invoke = method.invoke(newInstance, "代蒙恩");
+            System.out.println(invoke);
+        }
     }
 
 }
