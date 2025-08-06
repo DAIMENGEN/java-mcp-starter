@@ -1,8 +1,10 @@
-import com.advantest.mcpserver.tool.method.MethodToolCallback;
+import com.advantest.mcpserver.tool.ToolCallback;
+import com.advantest.mcpserver.tool.method.MethodToolCallbackProvider;
 import com.advantest.mcpserver.tool.scanner.ToolAnnotationScanner;
+import com.advantest.mcpserver.utils.McpToolUtils;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.modelcontextprotocol.server.McpServer;
-import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
+import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.server.McpSyncServer;
 import io.modelcontextprotocol.server.transport.HttpServletStreamableServerTransportProvider;
 import io.modelcontextprotocol.spec.McpSchema;
@@ -35,8 +37,8 @@ public class Main {
                         .completions()
                         .build()
                 ).build();
-        List<SyncToolSpecification> syncToolSpecifications = getSyncToolSpecifications();
-        for (SyncToolSpecification syncToolSpecification : syncToolSpecifications) {
+        List<McpServerFeatures.SyncToolSpecification> syncToolSpecifications = getSyncToolSpecifications();
+        for (McpServerFeatures.SyncToolSpecification syncToolSpecification : syncToolSpecifications) {
             mcpSyncServer.addTool(syncToolSpecification);
         }
         Server server = new Server(8080);
@@ -49,21 +51,10 @@ public class Main {
         server.start();
     }
 
-    public static List<SyncToolSpecification> getSyncToolSpecifications() {
-        List<MethodToolCallback> tools = ToolAnnotationScanner.findToolAnnotatedMethods("com.advantest.mcpserver");
-        return tools.stream().map(toolCallback -> {
-            String name = toolCallback.getToolDefinition().name();
-            String description = toolCallback.getToolDefinition().description();
-            String inputSchema = toolCallback.getToolDefinition().inputSchema();
-            McpSchema.Tool tool = McpSchema.Tool.builder()
-                    .name(name)
-                    .title(name)
-                    .description(description)
-                    .inputSchema(inputSchema)
-                    .build();
-            return SyncToolSpecification.builder()
-                    .tool(tool)
-                    .callHandler((exchange, request) -> new McpSchema.CallToolResult(toolCallback.call(request.arguments()), false)).build();
-        }).toList();
+    public static List<McpServerFeatures.SyncToolSpecification> getSyncToolSpecifications() {
+        List<Object> toolObjects = ToolAnnotationScanner.findToolAnnotatedMethods("com.advantest.mcpserver");
+        MethodToolCallbackProvider provider = MethodToolCallbackProvider.builder().toolObjects(toolObjects.toArray()).build();
+        ToolCallback[] toolCallbacks = provider.getToolCallbacks();
+        return McpToolUtils.toSyncToolSpecifications(toolCallbacks);
     }
 }

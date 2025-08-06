@@ -1,4 +1,4 @@
-package com.advantest.mcpserver;
+package com.advantest.mcpserver.tool.schema;
 
 /**
  * Create on 2025/08/05

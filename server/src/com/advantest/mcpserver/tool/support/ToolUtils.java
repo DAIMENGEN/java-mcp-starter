@@ -1,9 +1,13 @@
 package com.advantest.mcpserver.tool.support;
 
+import com.advantest.mcpserver.tool.ToolCallback;
 import com.advantest.mcpserver.tool.annotation.Tool;
 import io.modelcontextprotocol.util.Assert;
 
 import java.lang.reflect.Method;
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Create on 2025/08/05
@@ -42,5 +46,20 @@ public final class ToolUtils {
                 return method.getName();
             }
         }
+    }
+
+    public static List<String> getDuplicateToolNames(List<ToolCallback> toolCallbacks) {
+        return toolCallbacks.stream()
+                .map(callback -> callback.getToolDefinition().name().toLowerCase())
+                .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()))
+                .entrySet().stream()
+                .filter(entry -> entry.getValue() > 1)
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toList());
+    }
+
+    public static List<String> getDuplicateToolNames(ToolCallback... toolCallbacks) {
+        Assert.notNull(toolCallbacks, "toolCallbacks cannot be null");
+        return getDuplicateToolNames(Arrays.asList(toolCallbacks));
     }
 }

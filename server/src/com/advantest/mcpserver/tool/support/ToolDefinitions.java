@@ -1,7 +1,7 @@
 package com.advantest.mcpserver.tool.support;
 
-import com.advantest.mcpserver.InputSchema;
-import com.advantest.mcpserver.Property;
+import com.advantest.mcpserver.tool.schema.InputSchema;
+import com.advantest.mcpserver.tool.schema.Property;
 import com.advantest.mcpserver.tool.annotation.ToolParam;
 import com.advantest.mcpserver.tool.definition.DefaultToolDefinition;
 import com.advantest.mcpserver.tool.definition.ToolDefinition;
@@ -19,24 +19,30 @@ public final class ToolDefinitions {
     private ToolDefinitions() {
     }
 
+    private static void addParameterToSchema(InputSchema.Builder schemaBuilder, Parameter parameter) {
+        String name = parameter.getName();
+        String type = parameter.getType().getName();
+        ToolParam annotation = parameter.getAnnotation(ToolParam.class);
+        Property property;
+        if (annotation != null) {
+            String description = annotation.description();
+            property = StringUtils.hasText(description)
+                    ? Property.of(type, description)
+                    : Property.of(type);
+            if (annotation.required()) {
+                schemaBuilder.required(name);
+            }
+        } else {
+            property = Property.of(type);
+        }
+        schemaBuilder.addProperty(name, property);
+    }
+
     public static DefaultToolDefinition.Builder builder(Method method) {
         Assert.notNull(method, "method cannot be null");
         InputSchema.Builder inputSchemaBuilder = InputSchema.builder();
-        Parameter[] parameters = method.getParameters();
-        for (Parameter parameter : parameters) {
-            String parameterName = parameter.getName();
-            String parameterType = parameter.getType().getName();
-            ToolParam annotation = parameter.getAnnotation(ToolParam.class);
-            if (annotation != null) {
-                String description = annotation.description();
-                boolean hasText = StringUtils.hasText(description);
-                inputSchemaBuilder.addProperty(parameterName, hasText ? Property.of(parameterType, description) : Property.of(parameterType));
-                if (annotation.required()) {
-                    inputSchemaBuilder.required(parameterName);
-                }
-            } else {
-                inputSchemaBuilder.addProperty(parameterName, Property.of(parameterType));
-            }
+        for (Parameter parameter : method.getParameters()) {
+            addParameterToSchema(inputSchemaBuilder, parameter);
         }
         String inputSchema = inputSchemaBuilder.build().toJson();
         return DefaultToolDefinition.builder()

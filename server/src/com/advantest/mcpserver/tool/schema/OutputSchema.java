@@ -1,4 +1,4 @@
-package com.advantest.mcpserver;
+package com.advantest.mcpserver.tool.schema;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
