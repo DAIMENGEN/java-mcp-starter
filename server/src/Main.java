@@ -10,10 +10,7 @@ import io.modelcontextprotocol.server.transport.HttpServletStreamableServerTrans
 import io.modelcontextprotocol.spec.McpSchema;
 import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
 import org.eclipse.jetty.ee10.servlet.ServletHolder;
-import org.eclipse.jetty.server.Connector;
-import org.eclipse.jetty.server.HttpConnectionFactory;
-import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.server.ServerConnector;
+import org.eclipse.jetty.server.*;
 
 import java.util.List;
 
@@ -42,6 +39,7 @@ public class Main {
             mcpSyncServer.addTool(syncToolSpecification);
         }
         Server server = new Server(8080);
+        server.setRequestLog(new CustomRequestLog());
         Connector connector = new ServerConnector(server, 1, 1, new HttpConnectionFactory());
         server.addConnector(connector);
         ServletContextHandler contextHandler = new ServletContextHandler(ServletContextHandler.NO_SESSIONS);
