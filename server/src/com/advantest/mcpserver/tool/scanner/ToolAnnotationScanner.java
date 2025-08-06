@@ -1,5 +1,7 @@
 package com.advantest.mcpserver.tool.scanner;
 
+import com.advantest.mcpserver.tool.annotation.ToolService;
+
 import java.io.File;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URISyntaxException;
@@ -30,9 +32,13 @@ public class ToolAnnotationScanner {
                 return toolObjects;
             }
             for (File file : Objects.requireNonNull(directory.listFiles())) {
-                if (file.getName().endsWith("Service.class")) {
+                if (file.getName().endsWith(".class")) {
                     String className = packageName + "." + file.getName().replace(".class", "");
                     Class<?> clazz = Class.forName(className);
+                    ToolService annotation = clazz.getAnnotation(ToolService.class);
+                    if (annotation == null) {
+                        continue;
+                    }
                     Object object = clazz.getDeclaredConstructor().newInstance();
                     toolObjects.add(object);
                 }
