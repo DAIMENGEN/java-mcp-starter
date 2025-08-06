@@ -31,8 +31,6 @@ public class MethodToolCallbackProvider implements ToolCallbackProvider {
 
     private void assertToolAnnotatedMethodsPresent(List<Object> toolObjects) {
         for (Object toolObject : toolObjects) {
-            System.out.println(toolObject);
-            Method[] methods1 = toolObject.getClass().getDeclaredMethods();
             List<Method> methods = Stream.of(toolObject.getClass().getDeclaredMethods()).filter(this::isToolAnnotatedMethod).toList();
             if (methods.isEmpty()) {
                 throw new IllegalStateException("No tool annotated methods found in tool object: " + toolObject.getClass().getName());
