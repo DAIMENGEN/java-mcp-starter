@@ -22,28 +22,22 @@ public class Main {
     public static void main(String[] args) throws InterruptedException {
         Scanner scanner = new Scanner(System.in);
         CountDownLatch latch = new CountDownLatch(1);
-        OllamaChatModel chatModel = new OllamaChatModel("http://10.150.10.125:11434");
+        OllamaChatModel chatModel = new OllamaChatModel("http://localhost:11434");
         HttpClientSseClientTransport transport = HttpClientSseClientTransport.builder("http://localhost:8080").build();
         McpAsyncClient client = McpClient.async(transport).build();
-        client.initialize()
-                .flatMap(initResult -> client.listTools())
-                .flatMap(toolList -> {
-                    List<Tool> tools = toolList.tools().stream().map(tool -> Tool.function(ToolFunction.of(
-                            tool.name(),
-                            tool.description(),
-                            Parameters.object(tool.inputSchema().properties())
-                    ))).toList();
-                    return Mono.just(tools);
-                })
-                .doOnNext(tools -> {
-                    System.out.println("========================================");
-                    System.out.println("🧠 Welcome to AI Chat CLI");
-                    System.out.println("Type your questions below and press [Enter].");
-                    System.out.println("Type \"exit\" or \"quit\" to end the session.");
-                    System.out.println("========================================\n");
-                    loopChat(scanner, chatModel, client, tools, latch);
-                })
-                .subscribe();
+        client.initialize().block();
+        List<Tool> tools = client.listTools().flatMap(toolList ->
+                Mono.just(toolList.tools().stream().map(tool -> Tool.function(ToolFunction.of(
+                tool.name(),
+                tool.description(),
+                Parameters.object(tool.inputSchema().properties())
+        ))).toList())).block();
+        System.out.println("========================================");
+        System.out.println("🧠 Welcome to AI Chat CLI");
+        System.out.println("Type your questions below and press [Enter].");
+        System.out.println("Type \"exit\" or \"quit\" to end the session.");
+        System.out.println("========================================\n");
+        loopChat(scanner, chatModel, client, tools, latch);
         latch.await();
     }
 
